@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "broken-link-checker": {
+      "command": "docker",
+      "args": [
+        "exec",
+        "-i",
+        "mcp-broken-link-checker",
+        "python",
+        "broken_link_checker.py"
+      ],
+      "env": {
+        "PYTHONUNBUFFERED": "1"
+      }
+    }
+  }
+}

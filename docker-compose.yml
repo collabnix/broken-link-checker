@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  broken-link-checker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: broken-link-checker-mcp
+    restart: unless-stopped
+    
+    # Environment variables
+    environment:
+      - PYTHONUNBUFFERED=1
+      - MCP_SERVER_NAME=broken-link-checker
+      - MCP_SERVER_VERSION=1.0.0
+    
+    # Volume mounts for configuration and logs
+    volumes:
+      - ./config:/app/config:ro
+      - ./logs:/app/logs
+    
+    # Network configuration
+    networks:
+      - mcp-network
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Optional: Add a simple web interface for testing
+  web-interface:
+    image: nginx:alpine
+    container_name: broken-link-checker-web
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - ./web:/usr/share/nginx/html:ro
+    networks:
+      - mcp-network
+    depends_on:
+      - broken-link-checker
+    profiles:
+      - web
+
+networks:
+  mcp-network:
+    driver: bridge
+    name: mcp-broken-link-checker
+
+volumes:
+  config:
+    driver: local
+  logs:
+    driver: local
