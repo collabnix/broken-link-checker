@@ -1,0 +1,1 @@
+#!/bin/bash\n# Make scripts executable\nchmod +x scripts/build-and-push.sh\nchmod +x scripts/test-image.sh\nchmod +x docker/run.sh\nchmod +x docker-entrypoint.sh\n\necho \"✅ All scripts are now executable\""
