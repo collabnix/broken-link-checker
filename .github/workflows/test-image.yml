@@ -1,0 +1,89 @@
+name: Test Docker Image
+
+on:
+  workflow_run:
+    workflows: ["Build and Push Docker Image"]
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Image tag to test'
+        required: false
+        default: 'latest'
+
+env:
+  IMAGE_NAME: collabnix/broken-link-checker-mcp
+
+jobs:
+  test-image:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    
+    strategy:
+      matrix:
+        platform: [linux/amd64, linux/arm64]
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Determine image tag
+        id: tag
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "tag=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=latest" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Pull and test image
+        run: |
+          # Pull the image for the specific platform
+          docker pull --platform ${{ matrix.platform }} ${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.tag }}
+          
+          # Test dependencies
+          docker run --rm --platform ${{ matrix.platform }} ${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.tag }} \
+            python -c "import mcp, aiohttp, bs4; print('✅ Dependencies OK for ${{ matrix.platform }}')"
+          
+          # Test MCP server import
+          docker run --rm --platform ${{ matrix.platform }} ${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.tag }} \
+            python -c "from broken_link_checker import server; print('✅ MCP server import OK for ${{ matrix.platform }}')"
+
+      - name: Test image size
+        run: |
+          SIZE=$(docker images --format "{{.Size}}" ${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.tag }})
+          echo "Image size for ${{ matrix.platform }}: $SIZE"
+
+  security-scan:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Determine image tag
+        id: tag
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "tag=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=latest" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.tag }}'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
