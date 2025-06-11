@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "broken-link-checker": {
+      "command": "python",
+      "args": ["/path/to/broken-link-checker/broken_link_checker.py"]
+    }
+  }
+}
